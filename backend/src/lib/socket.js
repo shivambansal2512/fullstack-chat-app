@@ -12,40 +12,60 @@ const io = new Server(server, {
   },
 });
 
-export function getReceiverSocketId(userId) {
-  return userSocketMap[userId];
+// One person can have the app open in several tabs or on two devices, so each
+// user id holds a set of socket ids. Storing a single id meant that closing one
+// tab marked them offline everywhere, even with other tabs still connected.
+const userSockets = new Map(); // userId -> Set of socketIds
+
+function addUserSocket(userId, socketId) {
+  if (!userSockets.has(userId)) userSockets.set(userId, new Set());
+  userSockets.get(userId).add(socketId);
 }
 
-// used to store online users
-const userSocketMap = {}; // {userId: socketId}
+function removeUserSocket(userId, socketId) {
+  const sockets = userSockets.get(userId);
+  if (!sockets) return;
+
+  sockets.delete(socketId);
+  // Only offline once the last tab is gone.
+  if (sockets.size === 0) userSockets.delete(userId);
+}
+
+export function getOnlineUserIds() {
+  return [...userSockets.keys()];
+}
+
+/** Sends an event to every tab the given user has open. */
+export function emitToUser(userId, event, payload) {
+  const sockets = userSockets.get(String(userId));
+  if (!sockets) return;
+
+  for (const socketId of sockets) {
+    io.to(socketId).emit(event, payload);
+  }
+}
 
 io.on("connection", (socket) => {
-  console.log("A user connected", socket.id);
-
   const userId = socket.handshake.query.userId;
-  if (userId) userSocketMap[userId] = socket.id;
 
-  // io.emit() is used to send events to all the connected clients
-  io.emit("getOnlineUsers", Object.keys(userSocketMap));
+  if (userId) {
+    addUserSocket(userId, socket.id);
+    io.emit("getOnlineUsers", getOnlineUserIds());
+  }
 
   socket.on("typing", ({ receiverId }) => {
-    const receiverSocketId = userSocketMap[receiverId];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("typing", { senderId: userId });
-    }
+    emitToUser(receiverId, "typing", { senderId: userId });
   });
 
   socket.on("stopTyping", ({ receiverId }) => {
-    const receiverSocketId = userSocketMap[receiverId];
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("stopTyping", { senderId: userId });
-    }
+    emitToUser(receiverId, "stopTyping", { senderId: userId });
   });
 
   socket.on("disconnect", () => {
-    console.log("A user disconnected", socket.id);
-    delete userSocketMap[userId];
-    io.emit("getOnlineUsers", Object.keys(userSocketMap));
+    if (!userId) return;
+
+    removeUserSocket(userId, socket.id);
+    io.emit("getOnlineUsers", getOnlineUserIds());
   });
 });
 

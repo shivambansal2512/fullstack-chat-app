@@ -1,6 +1,6 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
-import { getReceiverSocketId, io } from "../lib/socket.js";
+import { emitToUser } from "../lib/socket.js";
 import { isCloudinaryConfigured, uploadImage } from "../lib/cloudinary.js";
 
 export const getUsersForSidebar = async (req, res) => {
@@ -44,10 +44,7 @@ export const markMessagesRead = async (req, res) => {
       { read: true }
     );
 
-    const senderSocketId = getReceiverSocketId(senderId);
-    if (senderSocketId) {
-      io.to(senderSocketId).emit("messagesRead", { by: receiverId });
-    }
+    emitToUser(senderId, "messagesRead", { by: String(receiverId) });
 
     res.status(200).json({ success: true });
   } catch (error) {
@@ -93,10 +90,7 @@ export const sendMessage = async (req, res) => {
 
     await newMessage.save();
 
-    const receiverSocketId = getReceiverSocketId(receiverId);
-    if (receiverSocketId) {
-      io.to(receiverSocketId).emit("newMessage", newMessage);
-    }
+    emitToUser(receiverId, "newMessage", newMessage);
 
     res.status(201).json(newMessage);
   } catch (error) {
