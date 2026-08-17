@@ -11,7 +11,7 @@ const COLORS = [
   "#db2777", // pink
 ];
 
-// "Shivam Bansal" -> "SB", "Emma" -> "E"
+// "John Doe" -> "JD", "Emma" -> "E"
 function getInitials(name = "") {
   const words = name.trim().split(/\s+/).filter(Boolean);
   if (words.length === 0) return "?";

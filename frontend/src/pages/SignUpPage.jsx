@@ -51,7 +51,7 @@ const SignUpPage = () => {
                 type="text"
                 value={formData.fullName}
                 onChange={(e) => setFormData({ ...formData, fullName: e.target.value })}
-                placeholder="Shivam Bansal"
+                placeholder="John Doe"
                 className="w-full h-11 pl-9 pr-3 rounded-xl bg-base-200 border border-base-300 text-sm
                   placeholder:text-base-content/40 focus:outline-none focus:border-primary/60"
               />
