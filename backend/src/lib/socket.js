@@ -65,6 +65,11 @@ io.on("connection", (socket) => {
     if (!userId) return;
 
     removeUserSocket(userId, socket.id);
+
+    // Someone who closes the tab mid-sentence never sends stopTyping, which
+    // would leave "typing..." on screen forever for whoever they were talking to.
+    if (!userSockets.has(userId)) io.emit("stopTyping", { senderId: userId });
+
     io.emit("getOnlineUsers", getOnlineUserIds());
   });
 });
