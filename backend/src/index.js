@@ -16,7 +16,9 @@ dotenv.config();
 const PORT = process.env.PORT;
 const __dirname = path.resolve();
 
-app.use(express.json());
+// Images arrive as base64 strings, which are ~33% bigger than the file itself.
+// The default limit is 100kb, far too small for a photo.
+app.use(express.json({ limit: "10mb" }));
 app.use(cookieParser());
 app.use(
   cors({

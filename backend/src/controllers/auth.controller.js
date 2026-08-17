@@ -1,6 +1,7 @@
 import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
+import { isCloudinaryConfigured, uploadImage } from "../lib/cloudinary.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -93,11 +94,27 @@ export const updateProfile = async (req, res) => {
       return res.status(400).json({ message: "Profile pic is required" });
     }
 
+    if (!isCloudinaryConfigured) {
+      return res
+        .status(503)
+        .json({ message: "Image uploads are not configured on the server" });
+    }
+
+    // Same as messages: upload the image and store just the URL. Keeping raw
+    // base64 here would bloat every user document, and the sidebar loads them all.
+    let imageUrl;
+    try {
+      imageUrl = await uploadImage(profilePic, "chatty/avatars");
+    } catch (error) {
+      console.log("Cloudinary upload failed:", error.message);
+      return res.status(502).json({ message: "Could not upload image, please try again" });
+    }
+
     const updatedUser = await User.findByIdAndUpdate(
       userId,
-      { profilePic },
+      { profilePic: imageUrl },
       { new: true }
-    );
+    ).select("-password");
 
     res.status(200).json(updatedUser);
   } catch (error) {

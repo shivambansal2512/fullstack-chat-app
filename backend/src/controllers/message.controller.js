@@ -1,6 +1,7 @@
 import User from "../models/user.model.js";
 import Message from "../models/message.model.js";
 import { getReceiverSocketId, io } from "../lib/socket.js";
+import { isCloudinaryConfigured, uploadImage } from "../lib/cloudinary.js";
 
 export const getUsersForSidebar = async (req, res) => {
   try {
@@ -61,10 +62,33 @@ export const sendMessage = async (req, res) => {
     const { id: receiverId } = req.params;
     const senderId = req.user._id;
 
+    if (!text?.trim() && !image) {
+      return res.status(400).json({ message: "Message cannot be empty" });
+    }
+
+    // Upload to Cloudinary and keep only the URL, so the message document
+    // stays small no matter how big the photo was.
+    let imageUrl;
+    if (image) {
+      if (!isCloudinaryConfigured) {
+        return res
+          .status(503)
+          .json({ message: "Image uploads are not configured on the server" });
+      }
+
+      try {
+        imageUrl = await uploadImage(image, "chatty/messages");
+      } catch (error) {
+        console.log("Cloudinary upload failed:", error.message);
+        return res.status(502).json({ message: "Could not upload image, please try again" });
+      }
+    }
+
     const newMessage = new Message({
       senderId,
       receiverId,
       text,
+      image: imageUrl,
     });
 
     await newMessage.save();
