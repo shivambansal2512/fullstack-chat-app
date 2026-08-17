@@ -5,10 +5,11 @@ import { useAuthStore } from "../store/useAuthStore";
 import { useChatStore } from "../store/useChatStore";
 
 const ChatHeader = () => {
-  const { selectedUser, setSelectedUser, isTyping } = useChatStore();
+  const { selectedUser, setSelectedUser, typingUsers } = useChatStore();
   const { onlineUsers } = useAuthStore();
 
   const isOnline = onlineUsers.includes(selectedUser._id);
+  const isTyping = typingUsers.includes(selectedUser._id);
 
   return (
     <header className="h-16 shrink-0 px-3 sm:px-4 flex items-center gap-3 bg-base-100 border-b border-base-300">

@@ -11,21 +11,32 @@ import SettingsPage from "./pages/SettingsPage";
 import ProfilePage from "./pages/ProfilePage";
 
 import { useAuthStore } from "./store/useAuthStore";
+import { useChatStore } from "./store/useChatStore";
 import { useThemeStore } from "./store/useThemeStore";
 
 const App = () => {
-  const { authUser, checkAuth, isCheckingAuth } = useAuthStore();
+  const { authUser, checkAuth, isCheckingAuth, socket } = useAuthStore();
+  const { subscribeToChatEvents, unsubscribeFromChatEvents } = useChatStore();
   const { theme } = useThemeStore();
 
   useEffect(() => {
     checkAuth();
   }, [checkAuth]);
 
+  // Listen for chat events for as long as we are connected, not just while a
+  // chat is open, so typing and read receipts keep working everywhere.
+  useEffect(() => {
+    if (!socket) return;
+
+    subscribeToChatEvents();
+    return () => unsubscribeFromChatEvents();
+  }, [socket, subscribeToChatEvents, unsubscribeFromChatEvents]);
+
   if (isCheckingAuth && !authUser)
     return (
       <div
         data-theme={theme}
-        className="h-screen bg-base-200 flex flex-col items-center justify-center gap-3"
+        className="app-shell bg-base-200 flex flex-col items-center justify-center gap-3"
       >
         <Loader className="size-8 animate-spin text-primary" />
         <p className="text-sm text-base-content/50">Loading Chatty...</p>
@@ -33,7 +44,7 @@ const App = () => {
     );
 
   return (
-    <div data-theme={theme} className="h-screen bg-base-200 text-base-content">
+    <div data-theme={theme} className="app-shell bg-base-200 text-base-content">
       {authUser ? (
         // Logged in: the app shell is always on screen, only the right side changes.
         <div className="flex h-full">

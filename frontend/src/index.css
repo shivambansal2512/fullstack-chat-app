@@ -10,6 +10,26 @@ body,
   background-color: #0b0f17;
 }
 
+/* Full height that behaves on phones. 100vh ignores the browser's address bar,
+   which pushes the message input below the fold; 100dvh tracks the bar as it
+   hides and reappears. The vh line stays as a fallback for older browsers. */
+.app-shell {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* iOS Safari zooms the page in whenever you focus an input smaller than 16px,
+   and never zooms back out. Bumping inputs to 16px on small screens avoids it.
+   !important is needed because Tailwind's text-sm is a class selector and would
+   otherwise win against a plain element selector. */
+@media (max-width: 640px) {
+  input,
+  textarea,
+  select {
+    font-size: 16px !important;
+  }
+}
+
 /* Thin scrollbar. --bc is DaisyUI's "base content" (text) colour, so this
    follows whichever theme is active. */
 ::-webkit-scrollbar {

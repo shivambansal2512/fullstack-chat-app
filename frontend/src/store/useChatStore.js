@@ -9,7 +9,7 @@ export const useChatStore = create((set, get) => ({
   selectedUser: null,
   isUsersLoading: false,
   isMessagesLoading: false,
-  isTyping: false,
+  typingUsers: [], // ids of everyone currently typing to us
 
   getUsers: async () => {
     set({ isUsersLoading: true });
@@ -59,40 +59,50 @@ export const useChatStore = create((set, get) => ({
     }
   },
 
-  subscribeToMessages: () => {
-    const { selectedUser } = get();
-    if (!selectedUser) return;
-
+  // Subscribed once for the whole app, not per open chat. The handlers read
+  // selectedUser through get() so they stay correct when the user switches chats.
+  subscribeToChatEvents: () => {
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
 
     socket.on("newMessage", (newMessage) => {
-      const isMessageSentFromSelectedUser = newMessage.senderId === selectedUser._id;
-      if (!isMessageSentFromSelectedUser) return;
+      const { selectedUser } = get();
+      if (!selectedUser || newMessage.senderId !== selectedUser._id) return;
+
       set({ messages: [...get().messages, newMessage] });
+
+      // We are looking at this chat right now, so mark it read immediately.
+      // Without this the sender's tick stays on "Sent" until we reopen the chat.
+      get().markMessagesRead(selectedUser._id);
     });
 
     socket.on("typing", ({ senderId }) => {
-      if (senderId === selectedUser._id) set({ isTyping: true });
+      const { typingUsers } = get();
+      if (typingUsers.includes(senderId)) return;
+      set({ typingUsers: [...typingUsers, senderId] });
     });
 
     socket.on("stopTyping", ({ senderId }) => {
-      if (senderId === selectedUser._id) set({ isTyping: false });
+      set({ typingUsers: get().typingUsers.filter((id) => id !== senderId) });
     });
 
-    socket.on("messagesRead", () => {
+    socket.on("messagesRead", ({ by }) => {
+      // Only the messages we sent to that person turn into double ticks.
       set({
-        messages: get().messages.map((m) => ({ ...m, read: true })),
+        messages: get().messages.map((m) => (m.senderId === by ? m : { ...m, read: true })),
       });
     });
   },
 
-  unsubscribeFromMessages: () => {
+  unsubscribeFromChatEvents: () => {
     const socket = useAuthStore.getState().socket;
+    if (!socket) return;
+
     socket.off("newMessage");
     socket.off("typing");
     socket.off("stopTyping");
     socket.off("messagesRead");
-    set({ isTyping: false });
+    set({ typingUsers: [] });
   },
 
   setSelectedUser: (selectedUser) => set({ selectedUser }),

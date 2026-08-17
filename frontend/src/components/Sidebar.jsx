@@ -7,8 +7,9 @@ import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
 
 const Sidebar = () => {
-  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading } = useChatStore();
-  const { onlineUsers } = useAuthStore();
+  const { getUsers, users, selectedUser, setSelectedUser, isUsersLoading, typingUsers } =
+    useChatStore();
+  const { onlineUsers, socket } = useAuthStore();
 
   const [showOnlineOnly, setShowOnlineOnly] = useState(false);
   const [search, setSearch] = useState("");
@@ -16,6 +17,15 @@ const Sidebar = () => {
   useEffect(() => {
     getUsers();
   }, [getUsers]);
+
+  // The list above is only fetched once, so somebody who signs up while we are
+  // online would never show up. The server tells us when that happens.
+  useEffect(() => {
+    if (!socket) return;
+
+    socket.on("newUser", getUsers);
+    return () => socket.off("newUser", getUsers);
+  }, [socket, getUsers]);
 
   // Two simple filters: the All/Online tabs, then the search box.
   const filteredUsers = users
@@ -74,6 +84,7 @@ const Sidebar = () => {
         {filteredUsers.map((user) => {
           const isOnline = onlineUsers.includes(user._id);
           const isSelected = selectedUser?._id === user._id;
+          const isTyping = typingUsers.includes(user._id);
 
           return (
             <button
@@ -96,8 +107,12 @@ const Sidebar = () => {
                 >
                   {user.fullName}
                 </p>
-                <p className="truncate text-xs text-base-content/45">
-                  {isOnline ? "Active now" : "Offline"}
+                <p
+                  className={`truncate text-xs ${
+                    isTyping ? "text-primary" : "text-base-content/45"
+                  }`}
+                >
+                  {isTyping ? "typing..." : isOnline ? "Active now" : "Offline"}
                 </p>
               </div>
             </button>

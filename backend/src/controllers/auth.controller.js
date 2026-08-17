@@ -2,6 +2,7 @@ import { generateToken } from "../lib/utils.js";
 import User from "../models/user.model.js";
 import bcrypt from "bcryptjs";
 import { isCloudinaryConfigured, uploadImage } from "../lib/cloudinary.js";
+import { io } from "../lib/socket.js";
 
 export const signup = async (req, res) => {
   const { fullName, email, password } = req.body;
@@ -31,6 +32,10 @@ export const signup = async (req, res) => {
       // generate jwt token here
       generateToken(newUser._id, res);
       await newUser.save();
+
+      // Tell everyone already online to refresh their contact list, otherwise
+      // this account stays invisible to them until they reload the page.
+      io.emit("newUser");
 
       res.status(201).json({
         _id: newUser._id,
