@@ -1,12 +1,15 @@
 import { useRef, useState, useCallback } from "react";
+import { Loader2, Paperclip, Send, X } from "lucide-react";
+import toast from "react-hot-toast";
+
 import { useChatStore } from "../store/useChatStore";
 import { useAuthStore } from "../store/useAuthStore";
-import { Image, Send, X } from "lucide-react";
-import toast from "react-hot-toast";
+import { MAX_IMAGE_SIZE_MB } from "../constants";
 
 const MessageInput = () => {
   const [text, setText] = useState("");
   const [imagePreview, setImagePreview] = useState(null);
+  const [isSending, setIsSending] = useState(false);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const { sendMessage, selectedUser } = useChatStore();
@@ -23,15 +26,22 @@ const MessageInput = () => {
 
   const handleImageChange = (e) => {
     const file = e.target.files[0];
+    if (!file) return;
+
     if (!file.type.startsWith("image/")) {
       toast.error("Please select an image file");
+      e.target.value = "";
+      return;
+    }
+
+    if (file.size > MAX_IMAGE_SIZE_MB * 1024 * 1024) {
+      toast.error(`Image must be smaller than ${MAX_IMAGE_SIZE_MB}MB`);
+      e.target.value = "";
       return;
     }
 
     const reader = new FileReader();
-    reader.onloadend = () => {
-      setImagePreview(reader.result);
-    };
+    reader.onloadend = () => setImagePreview(reader.result);
     reader.readAsDataURL(file);
   };
 
@@ -44,80 +54,88 @@ const MessageInput = () => {
     e.preventDefault();
     if (!text.trim() && !imagePreview) return;
 
-    try {
-      if (socket && selectedUser) socket.emit("stopTyping", { receiverId: selectedUser._id });
-      clearTimeout(typingTimeoutRef.current);
+    if (socket && selectedUser) socket.emit("stopTyping", { receiverId: selectedUser._id });
+    clearTimeout(typingTimeoutRef.current);
 
-      await sendMessage({
-        text: text.trim(),
-        image: imagePreview,
-      });
+    try {
+      setIsSending(true);
+      await sendMessage({ text: text.trim(), image: imagePreview });
 
       setText("");
       setImagePreview(null);
       if (fileInputRef.current) fileInputRef.current.value = "";
-    } catch (error) {
-      console.error("Failed to send message:", error);
+    } catch {
+      // The store already showed a toast. Keep the draft so nothing is lost.
+    } finally {
+      setIsSending(false);
     }
   };
 
+  const canSend = Boolean(text.trim() || imagePreview) && !isSending;
+
   return (
-    <div className="p-4 w-full">
+    <div className="shrink-0 p-3 sm:p-4 bg-base-100 border-t border-base-300">
       {imagePreview && (
-        <div className="mb-3 flex items-center gap-2">
-          <div className="relative">
-            <img
-              src={imagePreview}
-              alt="Preview"
-              className="w-20 h-20 object-cover rounded-lg border border-zinc-700"
-            />
-            <button
-              onClick={removeImage}
-              className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-base-300
-              flex items-center justify-center"
-              type="button"
-            >
-              <X className="size-3" />
-            </button>
-          </div>
+        <div className="relative w-20 mb-3">
+          <img src={imagePreview} alt="Preview" className="size-20 object-cover rounded-xl" />
+          <button
+            type="button"
+            onClick={removeImage}
+            disabled={isSending}
+            className="absolute -top-2 -right-2 size-5 rounded-full bg-base-300 hover:bg-error hover:text-white
+              flex items-center justify-center disabled:opacity-50"
+          >
+            <X className="size-3" />
+          </button>
         </div>
       )}
 
       <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-        <div className="flex-1 flex gap-2">
-          <input
-            type="text"
-            className="w-full input input-bordered rounded-lg input-sm sm:input-md"
-            placeholder="Type a message..."
-            value={text}
-            onChange={(e) => { setText(e.target.value); emitTyping(); }}
-          />
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            ref={fileInputRef}
-            onChange={handleImageChange}
-          />
+        <input
+          type="file"
+          accept="image/*"
+          className="hidden"
+          ref={fileInputRef}
+          onChange={handleImageChange}
+        />
 
-          <button
-            type="button"
-            className={`hidden sm:flex btn btn-circle
-                     ${imagePreview ? "text-emerald-500" : "text-zinc-400"}`}
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <Image size={20} />
-          </button>
-        </div>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isSending}
+          title="Attach image"
+          className={`size-11 shrink-0 rounded-xl flex items-center justify-center transition-colors disabled:opacity-50
+            ${imagePreview ? "text-primary bg-primary/15" : "text-base-content/50 hover:bg-base-300 hover:text-base-content"}`}
+        >
+          <Paperclip className="size-5" />
+        </button>
+
+        <input
+          type="text"
+          value={text}
+          onChange={(e) => {
+            setText(e.target.value);
+            emitTyping();
+          }}
+          placeholder="Type a message..."
+          className="flex-1 h-11 px-4 rounded-xl bg-base-200 border border-base-300 text-sm
+            placeholder:text-base-content/40 focus:outline-none focus:border-primary/60"
+        />
+
         <button
           type="submit"
-          className="btn btn-sm btn-circle"
-          disabled={!text.trim() && !imagePreview}
+          disabled={!canSend}
+          title="Send message"
+          className={`size-11 shrink-0 rounded-xl flex items-center justify-center transition-colors
+            ${canSend
+              ? "bg-primary text-primary-content hover:opacity-90"
+              : "bg-base-300 text-base-content/30 cursor-not-allowed"}`}
         >
-          <Send size={22} />
+          {isSending ? <Loader2 className="size-5 animate-spin" /> : <Send className="size-5" />}
         </button>
       </form>
     </div>
   );
 };
+
 export default MessageInput;
